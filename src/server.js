@@ -32,14 +32,14 @@ try {
     console.log(`Dev admin: admin@shoe.local / ${devPassword}`);
   }
 
-  if (!config.databaseUrl) await seedDemoProducts(pool);
+  await seedDemoProducts(pool);
 } catch (error) {
   console.error(`Seeding failed: ${error.message}`);
 }
 
 const app = createApp({ pool, sessionSecret: config.sessionSecret ?? undefined });
-const server = app.listen(config.port, () => {
-  console.log(`shoe-store listening on http://127.0.0.1:${config.port} (${config.nodeEnv})`);
+const server = app.listen(config.port, '0.0.0.0', () => {
+  console.log(`shoe-store listening on http://0.0.0.0:${config.port} (${config.nodeEnv})`);
 });
 
 function shutdown(signal) {

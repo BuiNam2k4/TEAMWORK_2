@@ -1,6 +1,7 @@
 services:
   db:
     image: postgres:16-alpine
+    restart: unless-stopped
     environment:
       POSTGRES_USER: shoe
       POSTGRES_PASSWORD: shoe
@@ -15,16 +16,18 @@ services:
       retries: 10
 
   app:
+    image: ghcr.io/buinam2k4/teamwork_2:latest
     build: .
+    restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3005:3000"
     environment:
       NODE_ENV: production
       PORT: 3000
       DATABASE_URL: postgres://shoe:shoe@db:5432/shoe
-      SESSION_SECRET: change-me-to-a-long-random-string
-      ADMIN_EMAIL: admin@example.com
-      ADMIN_PASSWORD: admin123
+      SESSION_SECRET: ${SESSION_SECRET:-change-me-to-a-long-random-string}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@example.com}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin123}
     depends_on:
       db:
         condition: service_healthy

@@ -17,6 +17,10 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
+      - name: Validate nginx config
+        run: docker run --rm -v "$PWD/nginx/teamwork_2.conf:/etc/nginx/conf.d/default.conf:ro" nginx:stable-alpine nginx -t
+      - name: Validate compose config
+        run: docker compose config --quiet
 
   build:
     needs: test

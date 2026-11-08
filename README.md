@@ -93,14 +93,9 @@ cp .env.example .env
 npm start
 ```
 
-App tự chạy `sql/schema.sql` khi khởi động và tạo/cập nhật tài khoản admin từ `ADMIN_EMAIL`/`ADMIN_PASSWORD`. Ở `NODE_ENV=production`, `DATABASE_URL` và `SESSION_SECRET` là bắt buộc.
+App tự chạy `sql/schema.sql` khi khởi động, tạo/cập nhật tài khoản admin từ `ADMIN_EMAIL`/`ADMIN_PASSWORD`, và seed 6 sản phẩm mẫu nếu bảng `products` đang trống. Ở `NODE_ENV=production`, `DATABASE_URL` và `SESSION_SECRET` là bắt buộc.
 
-Nếu đã từng chạy bản cũ (bảng `products` chưa có size/màu), thêm cột:
-
-```sql
-ALTER TABLE products ADD COLUMN IF NOT EXISTS sizes TEXT NOT NULL DEFAULT '';
-ALTER TABLE products ADD COLUMN IF NOT EXISTS colors TEXT NOT NULL DEFAULT '';
-```
+App tự thêm các cột còn thiếu khi khởi động (`ALTER TABLE ... IF NOT EXISTS` trong `sql/schema.sql`). Nếu dùng Docker với volume cũ và vẫn lỗi, chạy `docker compose down -v` rồi `docker compose up -d`.
 
 ### 5. Chạy test
 
@@ -286,6 +281,41 @@ sudo systemctl enable --now shoe-store
 ```
 
 Chỉ mở 80/443; PostgreSQL và app không mở ra Internet. Backup định kỳ bằng `pg_dump`.
+
+### Docker Compose + nginx host (CI/CD)
+
+```bash
+# local
+docker compose up -d --build
+docker compose ps
+docker compose logs -f app
+# mở http://localhost:3005
+```
+
+Trên VPS (thủ công, không cần CD):
+
+```bash
+cd /root/TEAMWORK_2
+git pull
+docker compose up -d --build
+```
+
+- CI push ảnh `ghcr.io/buinam2k4/teamwork_2:latest`; CD tự `pull` và `up -d` sau khi CI trên `main` thành công.
+- App publish `127.0.0.1:3005:3000` (chỉ localhost); **không** chạy nginx container. Host nginx trên VPS proxy `http://127.0.0.1:3005`.
+- Trên VPS, đặt repository variable `APP_DIR` là đường dẫn tuyệt đối (ví dụ `/root/TEAMWORK_2`); CD copy `docker-compose.yml`, `sql/schema.sql`, `nginx/teamwork_2.conf` lên đó và **không xóa** container/service khác (không dùng `--remove-orphans`).
+- Cài site nginx một lần (sửa `server_name` thành domain hoặc IP công khai trước):
+
+```bash
+sudo cp /root/TEAMWORK_2/nginx/teamwork_2.conf /etc/nginx/sites-available/teamwork_2.conf
+sudo ln -sf /etc/nginx/sites-available/teamwork_2.conf /etc/nginx/sites-enabled/teamwork_2.conf
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+Nếu nginx của bạn dùng `conf.d`, copy vào `/etc/nginx/conf.d/teamwork_2.conf`. Chỉ mở 80/443; app 3005 không mở firewall.
+
+- Tạo `.env` trên VPS (copy từ `.env.example`) để đặt `SESSION_SECRET`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`; compose đọc biến này, còn CD không ghi đè `.env`.
+- Container `web` cũ trên 3003 vẫn được giữ; CD không xóa. App mới chạy song song trên 3005.
+- Volume cũ: `docker compose down -v` rồi `docker compose up -d --build` (lệnh đầu **xóa DB**).
 
 ## Bảo mật
 
