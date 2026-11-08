@@ -1,12 +1,17 @@
+import { randomBytes } from 'node:crypto';
 import { loadConfig } from './config.js';
-import { createPool, createMemoryPool, initDb } from './db.js';
+import { createPool, createMemoryPool, initDb, seedDemoProducts } from './db.js';
 import { createApp } from './app.js';
+import { ensureAdmin } from './auth.js';
 
 const config = loadConfig();
 const pool = config.databaseUrl ? createPool(config.databaseUrl) : await createMemoryPool();
 
 if (!config.databaseUrl) {
   console.warn('DATABASE_URL not set: using in-memory PostgreSQL for development (data lost on restart).');
+}
+if (!config.sessionSecret) {
+  console.warn('SESSION_SECRET not set: using a random development secret (sessions reset on restart).');
 }
 
 try {
@@ -15,7 +20,24 @@ try {
   console.error(`Database init failed, /health/ready will report down: ${error.message}`);
 }
 
-const app = createApp({ pool });
+try {
+  if (config.adminEmail && config.adminPassword) {
+    await ensureAdmin(pool, config.adminEmail, config.adminPassword);
+    console.log(`Admin ensured for ${config.adminEmail}`);
+  } else if (config.adminEmail) {
+    console.warn('ADMIN_EMAIL set but ADMIN_PASSWORD missing: admin not seeded.');
+  } else if (!config.databaseUrl) {
+    const devPassword = randomBytes(9).toString('base64url');
+    await ensureAdmin(pool, 'admin@shoe.local', devPassword);
+    console.log(`Dev admin: admin@shoe.local / ${devPassword}`);
+  }
+
+  if (!config.databaseUrl) await seedDemoProducts(pool);
+} catch (error) {
+  console.error(`Seeding failed: ${error.message}`);
+}
+
+const app = createApp({ pool, sessionSecret: config.sessionSecret ?? undefined });
 const server = app.listen(config.port, () => {
   console.log(`shoe-store listening on http://127.0.0.1:${config.port} (${config.nodeEnv})`);
 });

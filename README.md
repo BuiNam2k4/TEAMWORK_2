@@ -1,38 +1,58 @@
-# Giày Store — Web CRUD sản phẩm + API PostgreSQL
+# Giày Store — Web bán giày + API PostgreSQL
 
-Web bán giày đơn giản: xem **danh sách sản phẩm** và **tạo sản phẩm mới** (nghiệp vụ CRUD tương đương yêu cầu "danh sách yêu cầu + tạo yêu cầu mới"). Toàn bộ dữ liệu nằm trong PostgreSQL.
+Web bán giày đơn giản: xem danh sách, chi tiết, lọc, giỏ hàng, đặt hàng, tài khoản và trang quản trị. Backend Express + PostgreSQL, frontend HTML/CSS/JS không build step.
 
-> Chạy nhanh: `npm install && npm run dev` rồi mở http://localhost:3000 (không cần database).
+> Chạy nhanh: `npm install && npm run dev` rồi mở http://localhost:3000. Không cần database: app dùng PostgreSQL in-memory, có sẵn 6 sản phẩm mẫu và in tài khoản admin ra terminal.
+
+## Chức năng
+
+- **Trang chủ**: danh sách sản phẩm, tìm theo tên, lọc theo hãng/size/khoảng giá, phân trang.
+- **Chi tiết sản phẩm**: ảnh, mô tả, size, màu, thêm vào giỏ.
+- **Giỏ hàng**: thêm/sửa số lượng/xóa, tổng tiền; dùng được cho khách chưa đăng nhập (lưu theo session).
+- **Đặt hàng**: COD hoặc chuyển khoản, lưu đơn + chi tiết đơn, xem lịch sử đơn.
+- **Tài khoản**: đăng ký/đăng nhập/đăng xuất, mật khẩu hash bằng scrypt.
+- **Quản trị**: CRUD sản phẩm, xem đơn, đổi trạng thái đơn; khách thường bị chặn.
 
 ## Đáp ứng yêu cầu
 
 | Yêu cầu | Cách đáp ứng |
 |---|---|
-| Web xem danh sách + tạo mới | `public/index.html` gọi API, form tạo sản phẩm, tìm kiếm, xóa |
-| API GET/POST kết nối PostgreSQL | `GET/POST/PUT/DELETE /api/products` dùng `pg` + prepared statements |
-| Dữ liệu minh chứng trước/sau | `npm run demo` và các test in/ so sánh danh sách trước và sau khi tạo |
-| `/health` liveness + readiness | `/health/live` (không phụ thuộc DB), `/health/ready` (ping DB), `/health` (tổng hợp) |
-| Cấu hình qua environment | `src/config.js` đọc `PORT`, `DATABASE_URL`, `NODE_ENV`; không có password trong source |
-| ≥ 5 automated tests | 9 test tại `test/api.test.js`, chạy bằng `node --test` |
+| Web xem danh sách + tạo mới | Trang chủ + form thêm sản phẩm trong trang Quản trị |
+| API GET/POST kết nối PostgreSQL | `/api/products`, `/api/auth`, `/api/cart`, `/api/orders` dùng `pg` + prepared statements |
+| Dữ liệu minh chứng trước/sau | `npm run demo` và test "tạo sản phẩm rồi kiểm tra danh sách sau" |
+| `/health` liveness + readiness | `/health/live` (không phụ thuộc DB), `/health/ready` (kiểm tra DB), `/health` (tổng hợp) |
+| Cấu hình qua environment | `src/config.js` đọc `PORT`, `DATABASE_URL`, `SESSION_SECRET`, `ADMIN_*`; không có password trong source |
+| ≥ 5 automated tests | 18 test tại `test/api.test.js`, chạy bằng `node --test` |
 
 ## Stack
 
-- Node.js 20.9+ (đã test với Node 22), Express 5
+- Node.js 22 LTS, Express 5
 - PostgreSQL 16, driver `pg`
+- `express-session` (cookie) + `crypto.scrypt` cho mật khẩu
 - Frontend HTML/CSS/JS thuần, không build step
-- Test: `node:test` + `pg-mem` (chạy test không cần PostgreSQL thật)
+- Test: `node:test` + `pg-mem` (không cần PostgreSQL thật)
 
 ## Cấu trúc
 
 ```
-src/config.js        đọc và validate environment
-src/db.js            tạo pool PostgreSQL + chạy schema
-src/app.js           Express app, API CRUD, health endpoints
-src/server.js        entrypoint, khởi động server
-sql/schema.sql       schema PostgreSQL
-public/              web UI
-scripts/demo.mjs     minh chứng dữ liệu trước/sau
-test/api.test.js     9 automated tests
+src/config.js          đọc và validate environment
+src/db.js              pool PostgreSQL, schema, seed sản phẩm mẫu
+src/app.js             Express app, session, health, mount routes
+src/server.js          entrypoint, seed admin dev, khởi động server
+src/auth.js            hash mật khẩu, requireAuth/requireAdmin, seed admin
+src/products.js        validate/serialize sản phẩm
+src/cart.js            đọc giỏ hàng từ session + sản phẩm
+src/http.js            parse id / query number
+src/routes/auth.js     đăng ký, đăng nhập, đăng xuất, me
+src/routes/products.js danh sách/lọc, chi tiết, CRUD (admin)
+src/routes/cart.js     thêm/sửa/xóa giỏ
+src/routes/orders.js   đặt hàng, lịch sử đơn
+src/routes/admin.js    quản lý đơn hàng
+sql/schema.sql         schema PostgreSQL
+public/                web UI (SPA hash routing)
+public/images/         ảnh minh hoạ giày (SVG nội bộ, không cần mạng)
+scripts/demo.mjs       minh chứng dữ liệu trước/sau
+test/api.test.js       18 automated tests
 ```
 
 ## Hướng dẫn chạy cho thành viên
@@ -58,17 +78,29 @@ npm run dev
 
 Mở http://localhost:3000.
 
-Khi thiếu `DATABASE_URL` ở môi trường dev, app tự dùng PostgreSQL in-memory (`pg-mem`); dữ liệu mất khi restart. Phù hợp để xem giao diện và thử API.
+Ở chế độ dev, khi thiếu `DATABASE_URL`:
+- App dùng PostgreSQL in-memory (`pg-mem`); dữ liệu mất khi restart.
+- Tự seed 6 sản phẩm mẫu.
+- Tự tạo admin ngẫu nhiên và in ra terminal, ví dụ:
+  `Dev admin: admin@shoe.local / Ab3dEf6hIj9k`
+- Dùng tài khoản đó để vào mục **Quản trị**, hoặc bấm **Đăng ký** để tạo tài khoản khách.
 
 ### 4. Chạy với PostgreSQL thật
 
 ```bash
 cp .env.example .env
-# Mở .env, sửa DATABASE_URL=postgres://user:password@localhost:5432/shoe
+# Mở .env, sửa DATABASE_URL, SESSION_SECRET, ADMIN_EMAIL, ADMIN_PASSWORD
 npm start
 ```
 
-App tự chạy `sql/schema.sql` khi khởi động. Ở `NODE_ENV=production`, `DATABASE_URL` là bắt buộc và app không dùng in-memory DB.
+App tự chạy `sql/schema.sql` khi khởi động và tạo/cập nhật tài khoản admin từ `ADMIN_EMAIL`/`ADMIN_PASSWORD`. Ở `NODE_ENV=production`, `DATABASE_URL` và `SESSION_SECRET` là bắt buộc.
+
+Nếu đã từng chạy bản cũ (bảng `products` chưa có size/màu), thêm cột:
+
+```sql
+ALTER TABLE products ADD COLUMN IF NOT EXISTS sizes TEXT NOT NULL DEFAULT '';
+ALTER TABLE products ADD COLUMN IF NOT EXISTS colors TEXT NOT NULL DEFAULT '';
+```
 
 ### 5. Chạy test
 
@@ -76,7 +108,7 @@ App tự chạy `sql/schema.sql` khi khởi động. Ở `NODE_ENV=production`, 
 npm test
 ```
 
-9 test, không cần PostgreSQL (dùng `pg-mem`).
+18 test, không cần PostgreSQL (dùng `pg-mem`).
 
 ### 6. Kiểm tra nhanh
 
@@ -92,19 +124,31 @@ npm run demo   # in BEFORE/INSERTED/AFTER, cần PostgreSQL thật
 |---|---|
 | `Cannot find module 'express'` / `'pg-mem'` | Chưa cài dependency: chạy `npm install` (hoặc `npm ci`) |
 | `DATABASE_URL is required in production` | Đang đặt `NODE_ENV=production`; tạo `.env` với `DATABASE_URL` thật hoặc bỏ `NODE_ENV` khi dev |
+| `SESSION_SECRET is required in production` | Thêm `SESSION_SECRET` dài, ngẫu nhiên vào `.env` |
 | `EADDRINUSE: address already in use :::3000` | Port bận: đổi `PORT=3001` trong `.env`, hoặc tắt process đang chạy |
 | `--env-file-if-exists` không được hỗ trợ | Node quá cũ: nâng lên Node 22 LTS |
-| Mở trang nhưng danh sách báo "Không tải được" | Kiểm tra terminal còn chạy và gọi `/health/ready` |
+| Đổi code mà giao diện không đổi | Khởi động lại `npm run dev` và hard-refresh trình duyệt |
 
 ## API
 
+### Auth
+
 | Method | Endpoint | Mô tả |
 |---|---|---|
-| GET | `/api/products?q=&brand=` | Danh sách sản phẩm, lọc theo tên/hãng |
-| POST | `/api/products` | Tạo sản phẩm mới |
+| POST | `/api/auth/register` | Đăng ký `{name, email, password}` (mật khẩu ≥ 8 ký tự) |
+| POST | `/api/auth/login` | Đăng nhập `{email, password}` |
+| POST | `/api/auth/logout` | Đăng xuất |
+| GET | `/api/auth/me` | Thông tin user đang đăng nhập |
+
+### Products
+
+| Method | Endpoint | Mô tả |
+|---|---|---|
+| GET | `/api/products?q=&brand=&size=&minPrice=&maxPrice=&page=&limit=` | Danh sách + lọc + phân trang |
 | GET | `/api/products/:id` | Chi tiết sản phẩm |
-| PUT | `/api/products/:id` | Cập nhật sản phẩm |
-| DELETE | `/api/products/:id` | Xóa sản phẩm |
+| POST | `/api/products` | Tạo sản phẩm (admin) |
+| PUT | `/api/products/:id` | Cập nhật sản phẩm (admin) |
+| DELETE | `/api/products/:id` | Xóa sản phẩm (admin) |
 
 Body tạo/cập nhật:
 
@@ -114,18 +158,57 @@ Body tạo/cập nhật:
   "brand": "Nike",
   "price": 2500000,
   "image_url": "https://example.com/shoe.jpg",
-  "description": "Giày chạy bộ"
+  "description": "Giày chạy bộ",
+  "sizes": ["40", "41", "42"],
+  "colors": ["Đen", "Trắng"]
 }
 ```
 
-`name` (1–120 ký tự), `brand` (1–80), `price` (số nguyên VND ≥ 0) là bắt buộc. `image_url` phải là http(s). Dữ liệu sai trả `400` kèm `details`.
+### Cart
 
-## Health
+| Method | Endpoint | Mô tả |
+|---|---|---|
+| GET | `/api/cart` | Giỏ hiện tại + tổng tiền |
+| POST | `/api/cart` | Thêm `{productId, size, qty}` |
+| PATCH | `/api/cart` | Đặt số lượng `{productId, size, qty}` (0 = xóa) |
+| DELETE | `/api/cart?productId=&size=` | Xóa một món |
+| DELETE | `/api/cart/all` | Xóa toàn bộ giỏ |
+
+### Orders
+
+| Method | Endpoint | Mô tả |
+|---|---|---|
+| POST | `/api/orders` | Đặt hàng từ giỏ (cần đăng nhập) |
+| GET | `/api/orders` | Đơn của tôi |
+| GET | `/api/orders/:id` | Chi tiết đơn (chủ đơn hoặc admin) |
+
+Body đặt hàng:
+
+```json
+{
+  "customer_name": "An",
+  "phone": "0901234567",
+  "address": "123 Đường ABC, TP.HCM",
+  "note": "Giao giờ hành chính",
+  "payment_method": "cod"
+}
+```
+
+### Admin
+
+| Method | Endpoint | Mô tả |
+|---|---|---|
+| GET | `/api/admin/orders?status=` | Tất cả đơn, lọc theo trạng thái |
+| PATCH | `/api/admin/orders/:id` | Đổi trạng thái `{status}` |
+
+Trạng thái: `pending`, `confirmed`, `shipping`, `done`, `cancelled`.
+
+### Health
 
 | Endpoint | Ý nghĩa |
 |---|---|
 | `GET /health/live` | Liveness: server còn sống, **không** kiểm tra DB. Dùng cho restart policy. |
-| `GET /health/ready` | Readiness: ping `SELECT 1`. DB chết → `503`, dùng để rút khỏi load balancer. |
+| `GET /health/ready` | Readiness: kiểm tra bảng sản phẩm. DB chết → `503`. |
 | `GET /health` | Tổng hợp liveness + database. |
 
 ```bash
@@ -148,35 +231,27 @@ Cách 2 — qua API:
 
 ```bash
 curl -s localhost:3000/api/products
-# {"data":[]}
-
 curl -s -X POST localhost:3000/api/products \
   -H 'content-type: application/json' \
-  -d '{"name":"Air Runner","brand":"Nike","price":2500000}'
-# {"data":{"id":1,"name":"Air Runner",...}}
-
+  -H 'cookie: connect.sid=<admin-session>' \
+  -d '{"name":"Air Runner","brand":"Nike","price":2500000,"sizes":["40","41"]}'
 curl -s localhost:3000/api/products
-# {"data":[{"id":1,"name":"Air Runner",...}]}
 ```
 
-Cách 3 — test `lists an empty table, creates a product and shows it afterwards` kiểm tra đúng chuỗi before → create → after.
+Cách 3 — test `lets admin create a product and shows it in the public list afterwards` kiểm tra đúng chuỗi before → create → after.
 
-## Automated tests (9)
+## Automated tests (18)
 
-1. Liveness trả 200 kể cả khi DB chết.
-2. Readiness trả 503 khi DB chết.
-3. Readiness trả 200 khi DB sống.
-4. Danh sách rỗng → tạo sản phẩm → danh sách có sản phẩm (before/after).
-5. Payload sai bị từ chối `400` và không ghi dữ liệu.
-6. Đọc, cập nhật, xóa sản phẩm.
-7. Lọc theo tên, hãng và kết hợp.
-8. ID sai trả `400`, ID không tồn tại trả `404`.
-9. Trang `/` trả HTML danh sách sản phẩm.
+- **Health (3)**: liveness khi DB chết, readiness 503 khi DB chết, readiness 200 khi DB sống.
+- **Auth (3)**: đăng ký/me/logout, trùng email/sai mật khẩu, validate input.
+- **Products (6)**: chặn khách sửa, tạo rồi thấy trong danh sách (before/after), validate, đọc/sửa/xóa, lọc tên/hãng/size/giá + phân trang, id/query sai.
+- **Cart (2)**: thêm/cộng dồn/sửa/xóa + tổng tiền, chặn size và số lượng sai.
+- **Orders (3)**: checkout xóa giỏ + lịch sử đơn, yêu cầu đăng nhập/giỏ không rỗng, admin xem/đổi trạng thái còn khách thì bị chặn.
+- **Web (1)**: trang `/` trả HTML.
 
 ## Deploy VPS Ubuntu
 
 ```bash
-# Node 22 + app
 sudo apt update && sudo apt install -y nginx
 curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
 sudo apt install -y nodejs
@@ -184,7 +259,7 @@ sudo useradd --system --home /opt/shoe-store shoe
 sudo mkdir -p /opt/shoe-store && sudo chown shoe:shoe /opt/shoe-store
 # copy source vào /opt/shoe-store, sau đó:
 sudo -u shoe npm ci --omit=dev
-sudo -u shoe cp .env.example .env   # sửa DATABASE_URL
+sudo -u shoe cp .env.example .env   # sửa DATABASE_URL, SESSION_SECRET, ADMIN_*
 ```
 
 `/etc/systemd/system/shoe-store.service`:
@@ -215,10 +290,13 @@ Chỉ mở 80/443; PostgreSQL và app không mở ra Internet. Backup định k�
 ## Bảo mật
 
 - Không hard-code password: mọi thông tin nhạy cảm đọc từ env; `.env` nằm trong `.gitignore`.
+- Mật khẩu hash bằng `scrypt` + salt ngẫu nhiên, so sánh bằng `timingSafeEqual`.
+- Session cookie `httpOnly`, `sameSite=lax`, `secure` tự bật khi chạy sau HTTPS.
+- Phân quyền: sửa/xóa sản phẩm và quản lý đơn yêu cầu role `admin`.
 - Truy vấn tham số hóa (chống SQL injection).
-- HTML escape ở client và validate chặt ở server (chống XSS/ dữ liệu rác).
+- HTML escape ở client, validate chặt ở server (chống XSS / dữ liệu rác).
 - Giới hạn body JSON 32kb; không trả stack trace cho client ở lỗi 500.
 
 ## Ghi chú phạm vi
 
-Bản này tập trung đúng rubric: CRUD sản phẩm, API PostgreSQL, health, env, test. Chưa có đăng nhập, giỏ hàng, thanh toán — thêm sau nếu cần.
+Session lưu in-memory (MemoryStore): phù hợp một instance; restart server sẽ đăng xuất và xóa giỏ khách. Thanh toán chỉ ghi nhận COD/chuyển khoản, chưa tích hợp cổng thật.
