@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Giày Store — Quản lý sản phẩm</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header class="hero">
+    <div>
+      <p class="eyebrow">SHOE STORE</p>
+      <h1>Danh sách giày</h1>
+      <p class="sub">Xem danh sách và thêm sản phẩm mới. Dữ liệu lưu trong PostgreSQL.</p>
+    </div>
+    <div id="health" class="health">Đang kiểm tra DB…</div>
+  </header>
+
+  <main>
+    <section class="card">
+      <h2>Thêm giày mới</h2>
+      <form id="product-form">
+        <div class="grid">
+          <label>Tên giày
+            <input name="name" required maxlength="120" placeholder="Air Runner">
+          </label>
+          <label>Hãng
+            <input name="brand" required maxlength="80" placeholder="Nike">
+          </label>
+          <label>Giá (VND)
+            <input name="price" required inputmode="numeric" pattern="[0-9]+" placeholder="2500000">
+          </label>
+          <label>Ảnh (URL)
+            <input name="image_url" type="url" placeholder="https://…">
+          </label>
+        </div>
+        <label>Mô tả
+          <textarea name="description" rows="2" maxlength="2000" placeholder="Mô tả ngắn…"></textarea>
+        </label>
+        <div class="actions">
+          <button type="submit">Tạo sản phẩm</button>
+          <span id="form-msg" class="msg" role="status"></span>
+        </div>
+      </form>
+    </section>
+
+    <section class="card">
+      <div class="list-head">
+        <h2>Sản phẩm <span id="count" class="pill">0</span></h2>
+        <input id="search" type="search" placeholder="Tìm theo tên hoặc hãng…">
+      </div>
+      <div id="products" class="products"></div>
+    </section>
+  </main>
+
+  <script src="/app.js" defer></script>
+</body>
+</html>
