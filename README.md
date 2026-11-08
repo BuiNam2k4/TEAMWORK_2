@@ -95,7 +95,7 @@ npm start
 
 App tự chạy `sql/schema.sql` khi khởi động, tạo/cập nhật tài khoản admin từ `ADMIN_EMAIL`/`ADMIN_PASSWORD`, và seed 6 sản phẩm mẫu nếu bảng `products` đang trống. Ở `NODE_ENV=production`, `DATABASE_URL` và `SESSION_SECRET` là bắt buộc.
 
-App tự thêm các cột còn thiếu khi khởi động (`ALTER TABLE ... IF NOT EXISTS` trong `sql/schema.sql`). Nếu dùng Docker với volume cũ và vẫn lỗi, chạy `docker compose down -v` rồi `docker compose up -d`.
+App tự thêm các cột còn thiếu khi khởi động (`ALTER TABLE ... IF NOT EXISTS` trong `sql/schema.sql`); không cần xóa volume/DB cũ.
 
 ### 5. Chạy test
 
@@ -315,7 +315,7 @@ Nếu nginx của bạn dùng `conf.d`, copy vào `/etc/nginx/conf.d/teamwork_2.
 
 - Tạo `.env` trên VPS (copy từ `.env.example`) để đặt `SESSION_SECRET`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`; compose đọc biến này, còn CD không ghi đè `.env`.
 - Container `web` cũ trên 3003 vẫn được giữ; CD không xóa. App mới chạy song song trên 3005.
-- Volume cũ: `docker compose down -v` rồi `docker compose up -d --build` (lệnh đầu **xóa DB**).
+- Volume cũ được giữ nguyên; không dùng `docker compose down -v` để tránh xóa DB.
 
 ## Bảo mật
 
